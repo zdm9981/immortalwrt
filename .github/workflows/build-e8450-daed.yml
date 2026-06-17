@@ -53,9 +53,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: dl
-          key: dl-${{ github.ref_name }}-${{ hashFiles('custom/e8450-daed.diffconfig', 'feeds.conf.default') }}
+          key: dl-${{ github.sha }}-${{ hashFiles('custom/e8450-daed.diffconfig', 'feeds.conf.default') }}
           restore-keys: |
-            dl-${{ github.ref_name }}-
             dl-
 
       - name: Update feeds
@@ -103,7 +102,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: immortalwrt-e8450-daed-${{ github.ref_name }}
+          name: immortalwrt-e8450-daed-${{ github.run_id }}
           path: artifact/
           if-no-files-found: error
           retention-days: 14
