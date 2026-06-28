@@ -1,0 +1,148 @@
+name: Build daed firmware
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "qiusimons-daed/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qiusimons-daed-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build ${{ matrix.device }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 720
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - device: e8450
+            diffconfig: custom/e8450-qiusimons-daed.diffconfig
+            target_path: mediatek/mt7622
+            artifact_pattern_1: "*e8450*"
+            artifact_pattern_2: "*rt3200*"
+          - device: ax6000
+            diffconfig: custom/ax6000-qiusimons-daed.diffconfig
+            target_path: mediatek/filogic
+            artifact_pattern_1: "*ax6000*"
+            artifact_pattern_2: ""
+
+    env:
+      TZ: Asia/Shanghai
+      QIUSIMONS_DAED_REF: daed_2026.06.19-r1
+
+    steps:
+      - name: Checkout ImmortalWrt release branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          docker system prune -af || true
+          df -h
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential \
+            bzip2 ccache clang cmake curl device-tree-compiler fastjar flex gawk gettext \
+            gcc-multilib g++-multilib git gperf haveged help2man intltool libc6-dev-i386 \
+            libelf-dev libfuse-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev \
+            libmpfr-dev libncurses5-dev libncursesw5-dev libpython3-dev libreadline-dev \
+            libssl-dev libtool lrzsz mkisofs msmtp ninja-build p7zip p7zip-full patch \
+            pkgconf python3 python3-pip python3-ply python3-docutils qemu-utils re2c \
+            rsync scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl unzip \
+            vim wget xmlto xxd zlib1g-dev llvm npm
+          sudo npm install -g pnpm
+
+      - name: Cache downloads
+        uses: actions/cache@v4
+        with:
+          path: dl
+          key: dl-${{ matrix.device }}-${{ github.sha }}-${{ hashFiles('custom/*-qiusimons-daed.diffconfig', 'feeds.conf.default') }}
+          restore-keys: |
+            dl-${{ matrix.device }}-
+            dl-
+
+      - name: Update feeds
+        run: |
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      - name: Override daed packages with QiuSimons source
+        run: |
+          git clone --depth 1 --branch "$QIUSIMONS_DAED_REF" \
+            https://github.com/QiuSimons/luci-app-daed.git /tmp/qiusimons-daed
+
+          rm -rf feeds/packages/net/daed feeds/luci/applications/luci-app-daed
+          rm -rf package/feeds/packages/daed package/feeds/luci/luci-app-daed
+          rm -rf package/qiusimons-daed
+
+          mkdir -p package/qiusimons-daed
+          cp -a /tmp/qiusimons-daed/daed package/qiusimons-daed/daed
+          cp -a /tmp/qiusimons-daed/luci-app-daed package/qiusimons-daed/luci-app-daed
+
+          grep -E 'PKG_VERSION|DAED_VERSION|WING_VERSION|CORE_VERSION|PKG_SOURCE_VERSION' \
+            package/qiusimons-daed/daed/Makefile
+
+      - name: Apply device config
+        run: |
+          cp "${{ matrix.diffconfig }}" .config
+          make defconfig
+          grep -E 'CONFIG_TARGET_mediatek|CONFIG_PACKAGE_luci-app-daed|CONFIG_PACKAGE_daed|CONFIG_DAED_USE_KERNEL_BTF|CONFIG_KERNEL_DEBUG_INFO_BTF|CONFIG_KERNEL_CGROUP_BPF|CONFIG_KERNEL_BPF_EVENTS|CONFIG_KERNEL_XDP_SOCKETS' .config
+          grep -q '^CONFIG_PACKAGE_luci-app-daed=y' .config
+          grep -q '^CONFIG_PACKAGE_daed=y' .config
+          grep -q '^CONFIG_DAED_USE_KERNEL_BTF=y' .config
+
+      - name: Download sources
+        run: |
+          make download -j"$(nproc)" || make download -j1 V=s
+
+      - name: Build firmware
+        run: |
+          make -j"$(nproc)" || make -j1 V=s
+
+      - name: Collect artifacts
+        if: always()
+        run: |
+          mkdir -p artifact
+          cp .config artifact/config.full || true
+          cp "${{ matrix.diffconfig }}" artifact/
+
+          for pattern in "${{ matrix.artifact_pattern_1 }}" "${{ matrix.artifact_pattern_2 }}"; do
+            [ -n "$pattern" ] || continue
+            find "bin/targets/${{ matrix.target_path }}" -maxdepth 1 -type f -name "$pattern" -exec cp -v {} artifact/ \; || true
+          done
+
+          find "bin/targets/${{ matrix.target_path }}" -maxdepth 1 -type f \( \
+            -name '*.manifest' -o \
+            -name '*.buildinfo' -o \
+            -name '*.json' -o \
+            -name 'sha256sums' \
+          \) -exec cp -v {} artifact/ \; || true
+
+          find "bin/targets/${{ matrix.target_path }}/packages" -type f \( \
+            -name '*daed*' -o \
+            -name '*xdp*' -o \
+            -name '*btf*' \
+          \) -exec cp -v {} artifact/ \; || true
+
+          ls -lh artifact
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: immortalwrt-${{ matrix.device }}-qiusimons-daed-${{ github.run_id }}
+          path: artifact/
+          if-no-files-found: error
+          retention-days: 14
