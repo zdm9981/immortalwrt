@@ -1,6 +1,6 @@
 --- a/Makefile
 +++ b/Makefile
-@@ -99,6 +99,7 @@ NODE_URL:=https://nodejs.org/dist/$(NODE_VERSION)/$(NODE_DIST).tar.xz
+@@ -99,11 +99,11 @@ NODE_URL:=https://nodejs.org/dist/$(NODE_VERSION)/$(NODE_DIST).tar.xz
  
  define Build/Prepare
  	( \
@@ -8,10 +8,21 @@
  		rm -rf $(DAED_BUILD_DIR) ; \
  		mkdir -p $(DAED_BUILD_DIR) ; \
  		$(TAR) --strip-components=1 -C $(DAED_BUILD_DIR) -xzf $(DL_DIR)/$(PKG_NAME)-$(PKG_VERSION).tar.gz ; \
-@@ -125,6 +126,7 @@ define Build/Prepare
- 		npm install -g pnpm ; \
+-		git clone https://github.com/daeuniverse/dae-wing $(PKG_BUILD_DIR) && \
+-			git -C $(PKG_BUILD_DIR) checkout $(WING_HASH_SHORT) ; \
++		test -f $(PKG_BUILD_DIR)/go.mod ; \
+ 		rm -rf $(PKG_BUILD_DIR)/dae-core ; \
+ 		git clone https://github.com/daeuniverse/dae $(PKG_BUILD_DIR)/dae-core && \
+ 			git -C $(PKG_BUILD_DIR)/dae-core checkout $(CORE_HASH_SHORT) ; \
+@@ -121,10 +121,11 @@ define Build/Prepare
+ 		wget -qO - "$(NODE_URL)" | tar -xJ -C $(DAED_BUILD_DIR)/.node_tmp --strip-components=1 ; \
+ 		export PATH="$(DAED_BUILD_DIR)/.node_tmp/bin:$$$$PATH" ; \
+ 		export XDG_CONFIG_HOME="$(DAED_BUILD_DIR)/.node_tmp/config" ; \
+-		npm install -g pnpm ; \
++		npm install -g pnpm@10.24.0 ; \
  		pushd $(DAED_BUILD_DIR) ; \
- 			pnpm install ; \
+-			pnpm install ; \
++			pnpm install --no-frozen-lockfile ; \
  			pnpm build --filter daed ; \
 +			test -s apps/web/dist/index.html ; \
  		popd ; \

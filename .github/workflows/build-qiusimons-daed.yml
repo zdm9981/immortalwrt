@@ -112,9 +112,9 @@ jobs:
         run: |
           make download -j"$(nproc)" || make download -j1 V=s
 
-      - name: Build firmware serially from a clean tree
+      - name: Build firmware
         run: |
-          make -j1 V=s
+          make -j"$(nproc)"
 
       - name: Collect artifacts
         if: always()
