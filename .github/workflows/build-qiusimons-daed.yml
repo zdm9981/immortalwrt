@@ -36,7 +36,7 @@ jobs:
 
     env:
       TZ: Asia/Shanghai
-      QIUSIMONS_DAED_REF: daed_2026.06.19-r1
+      QIUSIMONS_DAED_REF: 14578f2cb801f6b1b330c29e3b194aaee35a56b0
 
     steps:
       - name: Checkout ImmortalWrt release branch
@@ -81,8 +81,12 @@ jobs:
 
       - name: Override daed packages with QiuSimons source
         run: |
-          git clone --depth 1 --branch "$QIUSIMONS_DAED_REF" \
-            https://github.com/QiuSimons/luci-app-daed.git /tmp/qiusimons-daed
+          git init /tmp/qiusimons-daed
+          git -C /tmp/qiusimons-daed remote add origin \
+            https://github.com/QiuSimons/luci-app-daed.git
+          git -C /tmp/qiusimons-daed fetch --depth 1 origin "$QIUSIMONS_DAED_REF"
+          git -C /tmp/qiusimons-daed checkout --detach FETCH_HEAD
+          test "$(git -C /tmp/qiusimons-daed rev-parse HEAD)" = "$QIUSIMONS_DAED_REF"
 
           rm -rf feeds/packages/net/daed feeds/luci/applications/luci-app-daed
           rm -rf package/feeds/packages/daed package/feeds/luci/luci-app-daed
