@@ -1,0 +1,19 @@
+--- a/Makefile
++++ b/Makefile
+@@ -99,6 +99,7 @@ NODE_URL:=https://nodejs.org/dist/$(NODE_VERSION)/$(NODE_DIST).tar.xz
+ 
+ define Build/Prepare
+ 	( \
++		set -e ; \
+ 		rm -rf $(DAED_BUILD_DIR) ; \
+ 		mkdir -p $(DAED_BUILD_DIR) ; \
+ 		$(TAR) --strip-components=1 -C $(DAED_BUILD_DIR) -xzf $(DL_DIR)/$(PKG_NAME)-$(PKG_VERSION).tar.gz ; \
+@@ -125,6 +126,7 @@ define Build/Prepare
+ 		npm install -g pnpm ; \
+ 		pushd $(DAED_BUILD_DIR) ; \
+ 			pnpm install ; \
+ 			pnpm build --filter daed ; \
++			test -s apps/web/dist/index.html ; \
+ 		popd ; \
+ 		mkdir -p $(PKG_BUILD_DIR)/webrender/web ; \
+ 		cp -rf $(DAED_BUILD_DIR)/apps/web/dist/* $(PKG_BUILD_DIR)/webrender/web ; \
