@@ -112,6 +112,10 @@ jobs:
         run: |
           make download -j"$(nproc)" || make download -j1 V=s
 
+      - name: Build daed package serially
+        run: |
+          make package/qiusimons-daed/daed/compile -j1 V=s
+
       - name: Build firmware
         run: |
           make -j"$(nproc)" || make -j1 V=s
@@ -144,6 +148,7 @@ jobs:
           ls -lh artifact
 
       - name: Upload artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: immortalwrt-${{ matrix.device }}-qiusimons-daed-${{ github.run_id }}
