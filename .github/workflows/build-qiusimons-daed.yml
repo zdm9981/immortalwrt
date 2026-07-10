@@ -112,6 +112,11 @@ jobs:
         run: |
           make download -j"$(nproc)" || make download -j1 V=s
 
+      - name: Build host tools and toolchain
+        run: |
+          make tools/install -j"$(nproc)" || make tools/install -j1 V=s
+          make toolchain/install -j"$(nproc)" || make toolchain/install -j1 V=s
+
       - name: Build daed package serially
         run: |
           make package/qiusimons-daed/daed/compile -j1 V=s
